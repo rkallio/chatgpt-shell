@@ -329,12 +329,12 @@ where objects are converted into alists."
     ;; Advice around `url-http-create-request' to get the raw request
     ;; message
     (advice-add #'url-http-create-request :filter-return #'chatgpt-shell--log-request)
-    (setq processing-buffer
-          (condition-case err
-              (url-retrieve chatgpt-shell--api-endpoint
-                            #'chatgpt-shell--url-retrieve-callback)
-            (error (chatgpt-shell--write-reply (error-message-string err) t))))
-    (run-with-timer chatgpt-shell--request-timeout nil #'chatgpt-shell--check-on-request processing-buffer)))
+    (let ((processing-buffer
+           (condition-case err
+               (url-retrieve chatgpt-shell--api-endpoint
+                             #'chatgpt-shell--url-retrieve-callback)
+             (error (chatgpt-shell--write-reply (error-message-string err) t)))))
+      (run-with-timer chatgpt-shell--request-timeout nil #'chatgpt-shell--check-on-request processing-buffer))))
 
 (defun chatgpt-shell--check-on-request (url-process-buffer)
   "Check on the status of the HTTP request.
