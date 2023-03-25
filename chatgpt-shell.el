@@ -5,8 +5,7 @@
 ;; Author: Alvaro Ramirez
 ;; URL: https://github.com/xenodium/chatgpt-shell
 ;; Version: 0.3
-;; Package-Requires: ((emacs "27.1")
-;;                    (markdown-mode "2.5"))
+;; Package-Requires: ((emacs "27.1"))
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -34,7 +33,6 @@
 
 (require 'comint)
 (require 'map)
-(require 'markdown-mode)
 (require 'seq)
 
 (eval-when-compile
@@ -123,10 +121,10 @@ ChatGPT."
 (defconst chatgpt-shell-font-lock-keywords
   '(;; Markdown triple backticks
     ("\\(^\\(```\\)[^`\n]*\n\\)\\(\\(?:.\\|\n\\)*?\\)\\(^\\(```\\)$\\)"
-     (3 'markdown-pre-face))
+     (3 'shadow))
     ;; Markdown single backticks
     ("`\\([^`\n]+\\)`"
-     (1 'markdown-inline-code-face))))
+     (1 'shadow))))
 
 (defvar chatgpt-shell-map
   (let ((map (nconc (make-sparse-keymap) comint-mode-map)))
