@@ -40,8 +40,7 @@
 
 (defcustom chatgpt-shell-openai-key nil
   "OpenAI key as a string or a function that loads and returns it."
-  :type '(choice (function :tag "Function")
-                 (string :tag "String"))
+  :type 'string
   :group 'chatgpt-shell)
 
 (defcustom chatgpt-shell--request-timeout 30
@@ -286,18 +285,7 @@ Set SAVE-EXCURSION to prevent point from moving."
     (comint-output-filter (chatgpt-shell--process)
                           (propertize "<gpt-end-of-prompt>"
                                       'invisible (not chatgpt-shell--show-invisible-markers)))
-    (when-let ((key (cond ((stringp chatgpt-shell-openai-key)
-                           chatgpt-shell-openai-key)
-                          ((functionp chatgpt-shell-openai-key)
-                           (condition-case err
-                               (funcall chatgpt-shell-openai-key)
-                             (error
-                              (chatgpt-shell--write-reply (error-message-string err) t)
-                              (comint-output-filter (chatgpt-shell--process)
-                                                    (propertize "\n<gpt-ignored-response>"
-                                                                'invisible (not chatgpt-shell--show-invisible-markers)))
-                              nil))))))
-      (chatgpt-shell--request-completion key)))))
+    (chatgpt-shell--request-completion))))
 
 (defun chatgpt-shell--request-options ()
   "Create a request options alist.
@@ -317,14 +305,14 @@ request."
     (push (cons 'model chatgpt-shell-model-version) request-data)))
 
 ;; Maybe I should be a macro (get rid of callback), maybe not
-(defun chatgpt-shell--request-completion (key)
+(defun chatgpt-shell--request-completion ()
   "Request a completion.
 
 KEY is API key.  CALLBACK is called with a parsed response body,
 where objects are converted into alists."
   (let* ((url-request-method "POST")
          (url-request-extra-headers
-          `(("Authorization" . ,(concat "Bearer " key))
+          `(("Authorization" . ,(concat "Bearer " chatgpt-shell-openai-key))
             ("Content-Type" . "application/json")))
          (messages
           (vconcat
