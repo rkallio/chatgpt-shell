@@ -353,16 +353,16 @@ request process."
     ;; Something went wrong in the request, either here or on the
     ;; server, but at least we got a response
     (search-forward "\n\n")
-    (chatgpt-shell--json-parse-buffer)
-    (chatgpt-shell--write-reply
-     (string-trim
-      (map-elt
-       (map-elt
-        (seq-first
-         (map-elt chatgpt-shell--last-response 'choices))
-        'message) 'content)))
+    (let ((response (json-parse-buffer :object-type 'alist)))
+      (chatgpt-shell--write-reply
+       (string-trim
+        (map-elt
+         (map-elt
+          (seq-first
+           (map-elt response 'choices))
+          'message) 'content)))
     (with-current-buffer "*chatgpt*"
-      (let* ((usage (alist-get 'usage chatgpt-shell--last-response))
+      (let* ((usage (alist-get 'usage response))
              (prompt-tokens (cdar usage))
              (completion-tokens (cdadr usage))
              (total-tokens (cdaddr usage)))
@@ -374,7 +374,7 @@ request process."
                       completion-tokens
                       total-tokens
                       chatgpt-shell--total-tokens
-                      (* chatgpt-shell--total-tokens 2e-06)))))))
+                      (* chatgpt-shell--total-tokens 2e-06))))))))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
@@ -416,12 +416,6 @@ Used by `chatgpt-shell--send-input's call."
       (re-search-backward comint-prompt-regexp))
     (comint-skip-prompt)
     (buffer-substring (point) (progn (forward-sexp 1) (point)))))
-
-(defun chatgpt-shell--json-parse-buffer ()
-  "Parse JSON at point.
-
-Write result to `chatgpt-sell--last-response'."
-  (setq chatgpt-shell--last-response (json-parse-buffer :object-type 'alist)))
 
 (defun chatgpt-shell--extract-commands-and-responses ()
   "Extract all command and responses in buffer."
