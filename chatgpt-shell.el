@@ -352,38 +352,29 @@ request process."
   (let ((status (url-http-symbol-value-in-buffer 'url-http-response-status (current-buffer))))
     ;; Something went wrong in the request, either here or on the
     ;; server, but at least we got a response
-    (if (not (= status 200))
-        (chatgpt-shell--write-reply (buffer-string) t)
-      ;; NOTE Timed out requests will very likely come back completely
-      ;; empty, but they might, in very rare cases, also contain a
-      ;; partial response
-      (condition-case err
-          (progn (search-forward "\n\n")
-                 (chatgpt-shell--json-parse-buffer))
-        (error (chatgpt-shell--write-reply "Did not get a proper response from server" t))
-        (json-error (chatgpt-shell--write-reply "Did not get properly formatted JSON from server" t))
-        (:success
-         (chatgpt-shell--write-reply
-          (string-trim
-           (map-elt
-            (map-elt
-             (seq-first
-              (map-elt chatgpt-shell--last-response 'choices))
-             'message) 'content)))
-         (with-current-buffer "*chatgpt*"
-           (let* ((usage (alist-get 'usage chatgpt-shell--last-response))
-                  (prompt-tokens (cdar usage))
-                  (completion-tokens (cdadr usage))
-                  (total-tokens (cdaddr usage)))
-             (setq chatgpt-shell--total-tokens
-                   (+ total-tokens chatgpt-shell--total-tokens))
-             (setq header-line-format
-                   (format " Tokens P %s + C %s = %s,  Session %s ($%s)"
-                           prompt-tokens
-                           completion-tokens
-                           total-tokens
-                           chatgpt-shell--total-tokens
-                           (* chatgpt-shell--total-tokens 2e-06))))))))))
+    (search-forward "\n\n")
+    (chatgpt-shell--json-parse-buffer)
+    (chatgpt-shell--write-reply
+     (string-trim
+      (map-elt
+       (map-elt
+        (seq-first
+         (map-elt chatgpt-shell--last-response 'choices))
+        'message) 'content)))
+    (with-current-buffer "*chatgpt*"
+      (let* ((usage (alist-get 'usage chatgpt-shell--last-response))
+             (prompt-tokens (cdar usage))
+             (completion-tokens (cdadr usage))
+             (total-tokens (cdaddr usage)))
+        (setq chatgpt-shell--total-tokens
+              (+ total-tokens chatgpt-shell--total-tokens))
+        (setq header-line-format
+              (format " Tokens P %s + C %s = %s,  Session %s ($%s)"
+                      prompt-tokens
+                      completion-tokens
+                      total-tokens
+                      chatgpt-shell--total-tokens
+                      (* chatgpt-shell--total-tokens 2e-06)))))))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
