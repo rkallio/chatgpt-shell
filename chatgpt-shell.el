@@ -184,8 +184,6 @@ ChatGPT."
 
 (defvar chatgpt-shell--last-response nil)
 
-(defvar chatgpt-shell--current-request-id 0)
-
 (defvar chatgpt-shell--show-invisible-markers nil)
 
 (defvaralias 'inferior-chatgpt-mode-map 'chatgpt-shell-map)
@@ -411,12 +409,6 @@ request process."
   (prog1
       request
     (chatgpt-shell--write-output-to-log-buffer request)))
-
-(defun chatgpt-shell--increment-request-id ()
-  "Increment `chatgpt-shell--current-request-id'."
-  (if (= chatgpt-shell--current-request-id most-positive-fixnum)
-      (setq chatgpt-shell--current-request-id 0)
-    (setq chatgpt-shell--current-request-id (1+ chatgpt-shell--current-request-id))))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
