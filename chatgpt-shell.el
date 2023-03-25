@@ -172,8 +172,6 @@ ChatGPT."
                  (const nil))
   :group 'chatgpt-shell)
 
-(defvar chatgpt-shell--log-buffer-name "*chatgpt-shell-log*")
-
 (defvar chatgpt-shell--input)
 
 (defvar chatgpt-shell--prompt-internal "ChatGPT> ")
@@ -343,9 +341,6 @@ where objects are converted into alists."
                             (chatgpt-shell--request-options)
                             `((messages . ,messages))))
          (url-request-data (concat (json-encode request-data) "\n")))
-    ;; Advice around `url-http-create-request' to get the raw request
-    ;; message
-    (advice-add #'url-http-create-request :filter-return #'chatgpt-shell--log-request)
     (let ((processing-buffer
            (condition-case err
                (url-retrieve chatgpt-shell--api-endpoint
@@ -366,9 +361,7 @@ request process."
 
 (defun chatgpt-shell--url-retrieve-callback (status &optional cbargs)
   ""
-  (advice-remove #'url-http-create-request #'chatgpt-shell--log-request)
   (let ((status (url-http-symbol-value-in-buffer 'url-http-response-status (current-buffer))))
-    (chatgpt-shell--write-output-to-log-buffer (buffer-string))
     ;; Something went wrong in the request, either here or on the
     ;; server, but at least we got a response
     (if (not (= status 200))
@@ -403,12 +396,6 @@ request process."
                            total-tokens
                            chatgpt-shell--total-tokens
                            (* chatgpt-shell--total-tokens 2e-06))))))))))
-
-(defun chatgpt-shell--log-request (request)
-  "Write REQUEST to log buffer and return REQUEST."
-  (prog1
-      request
-    (chatgpt-shell--write-output-to-log-buffer request)))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
@@ -480,14 +467,6 @@ Write result to `chatgpt-sell--last-response'."
             (split-string (substring-no-properties (buffer-string))
                           chatgpt-shell--prompt-internal)))
     (nreverse result)))
-
-(defun chatgpt-shell--write-output-to-log-buffer (output)
-  "Write OUTPUT to log buffer.
-
-Create the log buffer if it does not exist."
-  (with-current-buffer (get-buffer-create chatgpt-shell--log-buffer-name)
-    (let ((beginning-of-input (goto-char (point-max))))
-      (insert output))))
 
 (defun chatgpt-shell--buffer ()
   "Get *chatgpt* buffer."
