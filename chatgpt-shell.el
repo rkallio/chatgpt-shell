@@ -48,11 +48,6 @@
   :type 'integer
   :group 'chatgpt-shell)
 
-(defcustom chatgpt-shell-prompt "ChatGPT> "
-  "Prompt text."
-  :type 'string
-  :group 'chatgpt-shell)
-
 (defcustom chatgpt-shell-model-version "gpt-3.5-turbo"
   "The used OpenAI model.
 
@@ -173,7 +168,7 @@ ChatGPT."
 
 (defvar chatgpt-shell--input)
 
-(defvar chatgpt-shell--prompt-internal "ChatGPT> ")
+(defvar-local chatgpt-shell--prompt "ChatGPT> ")
 
 (defvar chatgpt-shell--api-endpoint "https://api.openai.com/v1/chat/completions")
 
@@ -220,12 +215,11 @@ ChatGPT."
   "Major mode for interactively evaluating ChatGPT prompts.
 Uses the interface provided by `comint-mode'"
   (visual-line-mode)
-  (setq comint-prompt-regexp (concat "^" (regexp-quote chatgpt-shell-prompt)))
+  (setq comint-prompt-regexp (concat "^" (regexp-quote chatgpt-shell--prompt)))
   (setq-local paragraph-separate "\\'")
   (setq-local paragraph-start comint-prompt-regexp)
   (setq comint-input-sender 'chatgpt-shell--input-sender)
   (setq comint-process-echoes nil)
-  (setq-local chatgpt-shell--prompt-internal chatgpt-shell-prompt)
   (setq-local comint-prompt-read-only t)
   (setq comint-get-old-input 'chatgpt-shell--get-old-input)
   (setq-local comint-completion-addsuffix nil)
@@ -244,7 +238,7 @@ Uses the interface provided by `comint-mode'"
         (add-text-properties
          (point-min) (point-max)
          '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
-    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt-internal)
+    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt)
     (set-marker comint-last-input-start (chatgpt-shell--pm))
     (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter))
 
@@ -275,10 +269,10 @@ Set SAVE-EXCURSION to prevent point from moving."
   (cond
    ((string-equal "clear" (string-trim input-string))
     (call-interactively #'comint-clear-buffer)
-    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt-internal))
+    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt))
    ((string-empty-p (string-trim input-string))
     (comint-output-filter (chatgpt-shell--process)
-                          (concat "\n" chatgpt-shell--prompt-internal)))
+                          (concat "\n" chatgpt-shell--prompt)))
    (t
     ;; For viewing prompt delimiter (used to handle multiline prompts).
     ;; (comint-output-filter (chatgpt-shell--process) "<gpt-end-of-prompt>")
@@ -406,7 +400,7 @@ Used by `chatgpt-shell--send-input's call."
                                                 'invisible (not chatgpt-shell--show-invisible-markers))
                                   "")
                                 "\n\n"
-                                chatgpt-shell--prompt-internal)))
+                                chatgpt-shell--prompt)))
 
 (defun chatgpt-shell--get-old-input nil
   "Return the previous input surrounding point."
@@ -438,7 +432,7 @@ Used by `chatgpt-shell--send-input's call."
                     (push (list (cons 'role "system")
                                 (cons 'content response)) result)))))
             (split-string (substring-no-properties (buffer-string))
-                          chatgpt-shell--prompt-internal)))
+                          chatgpt-shell--prompt)))
     (nreverse result)))
 
 (defun chatgpt-shell--buffer ()
