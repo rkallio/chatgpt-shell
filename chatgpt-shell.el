@@ -112,6 +112,10 @@ ChatGPT."
 
 (defvar chatgpt-shell--api-endpoint "https://api.openai.com/v1/chat/completions")
 
+(defvar chatgpt-shell--total-tokens 0)
+
+(defvar chatgpt-shell--last-response nil)
+
 (defvar chatgpt-shell--current-request-id 0)
 
 (defvar chatgpt-shell--show-invisible-markers nil)
@@ -365,9 +369,23 @@ request process."
           (string-trim
            (map-elt
             (map-elt
-             (seq-first (map-elt chatgpt-shell--last-response
-                                 'choices))
-             'message) 'content))))))))
+             (seq-first
+              (map-elt chatgpt-shell--last-response 'choices))
+             'message) 'content)))
+         (with-current-buffer "*chatgpt*"
+           (let* ((usage (alist-get 'usage chatgpt-shell--last-response))
+                  (prompt-tokens (cdar usage))
+                  (completion-tokens (cdadr usage))
+                  (total-tokens (cdaddr usage)))
+             (setq chatgpt-shell--total-tokens
+                   (+ total-tokens chatgpt-shell--total-tokens))
+             (setq header-line-format
+                   (format " Tokens P %s + C %s = %s,  Session %s ($%s)"
+                           prompt-tokens
+                           completion-tokens
+                           total-tokens
+                           chatgpt-shell--total-tokens
+                           (* chatgpt-shell--total-tokens 2e-06))))))))))
 
 (defun chatgpt-shell--log-request (request)
   "Write REQUEST to log buffer and return REQUEST."
