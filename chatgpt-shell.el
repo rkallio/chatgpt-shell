@@ -63,19 +63,89 @@ https://platform.openai.com/docs/models/model-endpoint-compatibility."
   :type 'string
   :group 'chatgpt-shell)
 
+(defcustom chatgpt-shell-model-max-tokens nil
+  "The maximum number of tokens to generate in the completion.
+
+For chatgpt-3.5-turbo, the maximum token count is 4096.  Both the
+prompt and the completion have to fit into that limit.  Note that
+the cost for chatgpt-3.5-turbo is currently at $0.002 cents/1000
+tokens, so a maximally long completion will cost about $0.008.
+
+Value may be nil, in which case the API decides maximum token
+length.
+
+See https://platform.openai.com/docs/api-reference/completions\
+/create#completions/create-max_tokens for details."
+  :type '(choice integer
+                 (const nil))
+  :group 'chatgpt-shell)
+
 (defcustom chatgpt-shell-model-temperature nil
   "What sampling temperature to use, between 0 and 2, or nil.
 
 Higher values like 0.8 will make the output more random, while
 lower values like 0.2 will make it more focused and
 deterministic.  Value of nil will not pass this configuration to
-the model.
+the model.  Alter this or `chatgpt-shell-model-top-p', but not
+both.
 
 See
 https://platform.openai.com/docs/api-reference/completions\
 /create#completions/create-temperature
 for details."
-  :type '(choice integer
+  :type '(choice number
+                 (const nil))
+  :group 'chatgpt-shell)
+
+(defcustom chatgpt-shell-model-top-p nil
+  "An alternative to sampling with temperature.
+
+In nucleus sampling, the model considers the results of the
+tokens with `chatgpt-shell-model-top-p' probability mass.  So 0.1
+means only the tokens comprising the top 10% probability mass are
+considered.  Alter this or `chatgpt-shell-model-temperature', but not
+both.
+
+See https://platform.openai.com/docs/api-reference/\
+completions/create#completions/create-top_p for details."
+  :type '(choice number
+                 (const nil))
+  :group 'chatgpt-shell)
+
+(defcustom chatgpt-shell-stream nil
+  "If set, completion will be received and displayed as deltas.
+
+Not implemented, so does not do anything.
+
+See https://platform.openai.com/docs/api-reference/chat\
+/create#chat/create-stream for details."
+  :type 'boolean
+  :group 'chatgpt-shell)
+
+(defvar chatgpt-shell-model-stop nil
+  "Not implemented.
+
+See https://platform.openai.com/docs/api-reference/chat\
+/create#chat/create-stop for details.")
+
+(defcustom chatgpt-shell-model-presence-penalty nil
+  "Number between -2.0 and 2.0.
+Positive values penalize new tokens based on whether they appear
+in the text so far, increasing the model's likelihood to talk
+about new topics.
+
+See https://platform.openai.com/docs/api-reference/chat\
+/create#chat/create-presence_penalty for details."
+  :type '(choice number
+                 (const nil))
+  :group 'chatgpt-shell)
+
+(defcustom chatgpt-shell-model-frequency-penalty nil
+  "Number between -2.0 and 2.0.
+Positive values penalize new tokens based on their existing
+frequency in the text so far, decreasing the model's likelihood
+to repeat the same line verbatim."
+  :type '(choice number
                  (const nil))
   :group 'chatgpt-shell)
 
@@ -294,6 +364,23 @@ or
         (chatgpt-shell--request-completion key)
         (setq chatgpt-shell--busy nil))))))
 
+(defun chatgpt-shell--request-options ()
+  "Create a request options alist.
+This is data that will be sent in the request body of a HTTP
+request."
+  (let ((request-data))
+    (when chatgpt-shell-model-temperature
+      (push (cons 'temperature chatgpt-shell-model-temperature) request-data))
+    (when chatgpt-shell-model-top-p
+      (push (cons 'top-p chatgpt-shell-model-top-p) request-data))
+    (when chatgpt-shell-model-max-tokens
+      (push (cons 'max-tokens chatgpt-shell-model-max-tokens) request-data))
+    (when chatgpt-shell-model-presence-penalty
+      (push (cons 'presence_penalty chatgpt-shell-model-presence-penalty) request-data))
+    (when chatgpt-shell-model-frequency-penalty
+      (push (cons 'frequency_penalty chatgpt-shell-model-frequency-penalty) request-data))
+    (push (cons 'model chatgpt-shell-model-version) request-data)))
+
 ;; Maybe I should be a macro (get rid of callback), maybe not
 (defun chatgpt-shell--request-completion (key)
   "Request a completion.
@@ -315,17 +402,10 @@ where objects are converted into alists."
                    ;; Send in pairs of prompt and completion by
                    ;; multiplying by 2
                    (1+ (* 2 chatgpt-shell-transmitted-context-length))))))
-         (url-request-data `((model . ,chatgpt-shell-model-version)
-                             (messages . ,messages)))
-         ;; Add temperature parameter if it is not nil
-         (url-request-data (if chatgpt-shell-model-temperature
-                               (append url-request-data
-                                       `((temperature . chatgpt-shell-model-temperature)))
-                             url-request-data))
-                                        ; newline not strictly
-                                        ; necessary here, but it makes
-                                        ; for easier logging for now
-         (url-request-data (concat (json-encode url-request-data) "\n")))
+         (request-data (append
+                            (chatgpt-shell--request-options)
+                            `((messages . ,messages))))
+         (url-request-data (concat (json-encode request-data) "\n")))
     ;; Advice around `url-http-create-request' to get the raw request
     ;; message
     (advice-add #'url-http-create-request :filter-return #'chatgpt-shell--log-request)
