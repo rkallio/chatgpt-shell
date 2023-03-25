@@ -176,8 +176,6 @@ ChatGPT."
 
 (defvar chatgpt-shell--input)
 
-(defvar chatgpt-shell--busy)
-
 (defvar chatgpt-shell--prompt-internal "ChatGPT> ")
 
 (defvar chatgpt-shell--api-endpoint "https://api.openai.com/v1/chat/completions")
@@ -203,7 +201,6 @@ ChatGPT."
 (defvar chatgpt-shell-map
   (let ((map (nconc (make-sparse-keymap) comint-mode-map)))
     (define-key map "\C-m" 'chatgpt-shell-return)
-    (define-key map "\C-c\C-c" 'chatgpt-shell-interrupt)
     map)
   "Keymap for ChatGPT mode.")
 
@@ -217,7 +214,6 @@ ChatGPT."
         (buf-name "*chatgpt*"))
     (unless (comint-check-proc buf-name)
       (with-current-buffer (get-buffer-create "*chatgpt*")
-        (setq chatgpt-shell--busy nil)
         (unless (zerop (buffer-size))
           (setq old-point (point)))
         (inferior-chatgpt-mode)))
@@ -271,8 +267,6 @@ Set SAVE-EXCURSION to prevent point from moving."
   (chatgpt-shell)
   (switch-to-buffer (chatgpt-shell--buffer))
   (with-current-buffer (chatgpt-shell--buffer)
-    (when chatgpt-shell--busy
-      (chatgpt-shell-interrupt))
     (goto-char (point-max))
     (if save-excursion
         (save-excursion
@@ -281,68 +275,33 @@ Set SAVE-EXCURSION to prevent point from moving."
     (when submit
       (chatgpt-shell--send-input))))
 
-(defun chatgpt-shell-interrupt ()
-  "Interrupt current request."
-  (interactive)
-  (with-current-buffer (chatgpt-shell--buffer)
-    ;; Increment id, so in-flight request is ignored.
-    (chatgpt-shell--increment-request-id)
-    (comint-send-input)
-    (goto-char (point-max))
-    (comint-output-filter (chatgpt-shell--process)
-                          (concat (propertize "<gpt-end-of-prompt>\n<gpt-ignored-response>"
-                                              'invisible (not chatgpt-shell--show-invisible-markers))
-                                  "\n"
-                                  chatgpt-shell--prompt-internal))
-    (setq chatgpt-shell--busy nil)
-    (message "interrupted!")))
-
 (defun chatgpt-shell--eval-input (input-string)
   "Evaluate the Lisp expression INPUT-STRING, and pretty-print the result."
-  (unless chatgpt-shell--busy
-    (setq chatgpt-shell--busy t)
-    (cond
-     ((string-equal "clear" (string-trim input-string))
-      (call-interactively #'comint-clear-buffer)
-      (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt-internal)
-      (setq chatgpt-shell--busy nil))
-     ((not (json-available-p))
-      (chatgpt-shell--write-reply "Emacs needs to be compiled with --with-json")
-      (setq chatgpt-shell--busy nil))
-     ((not chatgpt-shell-openai-key)
-      (chatgpt-shell--write-reply
-       "Variable `chatgpt-shell-openai-key' needs to be set to your key.
-
-Try M-x set-variable chatgpt-shell-openai-key
-
-or
-
-(setq chatgpt-shell-openai-key \"my-key\")" t)
-      (setq chatgpt-shell--busy nil))
-     ((string-empty-p (string-trim input-string))
-      (comint-output-filter (chatgpt-shell--process)
-                            (concat "\n" chatgpt-shell--prompt-internal))
-      (setq chatgpt-shell--busy nil))
-     (t
-      ;; For viewing prompt delimiter (used to handle multiline prompts).
-      ;; (comint-output-filter (chatgpt-shell--process) "<gpt-end-of-prompt>")
-      (comint-output-filter (chatgpt-shell--process)
-                            (propertize "<gpt-end-of-prompt>"
-                                        'invisible (not chatgpt-shell--show-invisible-markers)))
-      (when-let ((key (cond ((stringp chatgpt-shell-openai-key)
-                             chatgpt-shell-openai-key)
-                            ((functionp chatgpt-shell-openai-key)
-                             (condition-case err
-                                 (funcall chatgpt-shell-openai-key)
-                               (error
-                                (chatgpt-shell--write-reply (error-message-string err) t)
-                                (comint-output-filter (chatgpt-shell--process)
-                                                      (propertize "\n<gpt-ignored-response>"
-                                                                  'invisible (not chatgpt-shell--show-invisible-markers)))
-                                (setq chatgpt-shell--busy nil)
-                                nil))))))
-        (chatgpt-shell--request-completion key)
-        (setq chatgpt-shell--busy nil))))))
+  (cond
+   ((string-equal "clear" (string-trim input-string))
+    (call-interactively #'comint-clear-buffer)
+    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt-internal))
+   ((string-empty-p (string-trim input-string))
+    (comint-output-filter (chatgpt-shell--process)
+                          (concat "\n" chatgpt-shell--prompt-internal)))
+   (t
+    ;; For viewing prompt delimiter (used to handle multiline prompts).
+    ;; (comint-output-filter (chatgpt-shell--process) "<gpt-end-of-prompt>")
+    (comint-output-filter (chatgpt-shell--process)
+                          (propertize "<gpt-end-of-prompt>"
+                                      'invisible (not chatgpt-shell--show-invisible-markers)))
+    (when-let ((key (cond ((stringp chatgpt-shell-openai-key)
+                           chatgpt-shell-openai-key)
+                          ((functionp chatgpt-shell-openai-key)
+                           (condition-case err
+                               (funcall chatgpt-shell-openai-key)
+                             (error
+                              (chatgpt-shell--write-reply (error-message-string err) t)
+                              (comint-output-filter (chatgpt-shell--process)
+                                                    (propertize "\n<gpt-ignored-response>"
+                                                                'invisible (not chatgpt-shell--show-invisible-markers)))
+                              nil))))))
+      (chatgpt-shell--request-completion key)))))
 
 (defun chatgpt-shell--request-options ()
   "Create a request options alist.
