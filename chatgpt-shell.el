@@ -264,26 +264,6 @@ Uses the interface provided by `comint-mode'"
   (interactive)
   (chatgpt-shell--send-input))
 
-(defun chatgpt-shell-prompt ()
-  "Make a ChatGPT request from the minibuffer."
-  (interactive)
-  (chatgpt-shell-send-to-buffer (read-string chatgpt-shell-prompt))
-  (chatgpt-shell--send-input))
-
-(defun chatgpt-shell-describe-code ()
-  "Describe code from region using ChatGPT."
-  (interactive)
-  (chatgpt-shell-send-to-buffer
-   (concat "What does the following code do?\n\n"
-           (buffer-substring (region-beginning) (region-end))))
-  (chatgpt-shell--send-input))
-
-(defun chatgpt-shell-send-region ()
-  "Send region to ChatGPT."
-  (interactive)
-  (chatgpt-shell-send-to-buffer
-   (buffer-substring (region-beginning) (region-end)) nil t))
-
 (defun chatgpt-shell-send-to-buffer (text &optional submit save-excursion)
   "Send TEXT to *chatgpt* buffer.
 Set SUBMIT to automatically submit to ChatGPT.
