@@ -369,7 +369,7 @@ request process."
         (setq chatgpt-shell--total-tokens
               (+ total-tokens chatgpt-shell--total-tokens))
         (setq header-line-format
-              (format " Tokens P %s + C %s = %s,  Session %s ($%s)"
+              (format " Tokens P %s + C %s = %s, Session %s ($%s)"
                       prompt-tokens
                       completion-tokens
                       total-tokens
