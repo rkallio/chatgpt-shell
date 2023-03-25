@@ -219,7 +219,7 @@ ChatGPT."
 (define-derived-mode inferior-chatgpt-mode comint-mode "CHATGPT"
   "Major mode for interactively evaluating ChatGPT prompts.
 Uses the interface provided by `comint-mode'"
-  (visual-line-mode +1)
+  (visual-line-mode)
   (setq comint-prompt-regexp (concat "^" (regexp-quote chatgpt-shell-prompt)))
   (setq-local paragraph-separate "\\'")
   (setq-local paragraph-start comint-prompt-regexp)
