@@ -38,13 +38,17 @@
 (require 'seq)
 
 (eval-when-compile
-  (require 'cl-lib)
-  (declare-function json-pretty-print "ext:json" (begin end &optional minimize)))
+  (require 'cl-lib))
 
 (defcustom chatgpt-shell-openai-key nil
   "OpenAI key as a string or a function that loads and returns it."
   :type '(choice (function :tag "Function")
                  (string :tag "String"))
+  :group 'chatgpt-shell)
+
+(defcustom chatgpt-shell--request-timeout 30
+  "Timeout request after this many seconds."
+  :type 'integer
   :group 'chatgpt-shell)
 
 (defcustom chatgpt-shell-prompt "ChatGPT> "
@@ -121,6 +125,8 @@ ChatGPT."
 (defvar chatgpt-shell--busy)
 
 (defvar chatgpt-shell--prompt-internal "ChatGPT> ")
+
+(defvar chatgpt-shell--api-endpoint "https://api.openai.com/v1/chat/completions")
 
 (defvar chatgpt-shell--current-request-id 0)
 
@@ -306,6 +312,7 @@ Set SAVE-EXCURSION to prevent point from moving."
     (message "interrupted!")))
 
 (defun chatgpt-shell--eval-input (input-string)
+  "Evaluate the Lisp expression INPUT-STRING, and pretty-print the result."
   (unless chatgpt-shell--busy
     (setq chatgpt-shell--busy t)
     (cond
@@ -386,38 +393,49 @@ where objects are converted into alists."
     ;; Advice around `url-http-create-request' to get the raw request
     ;; message
     (advice-add #'url-http-create-request :filter-return #'chatgpt-shell--log-request)
-    ;; implement timeouts using me
     (setq processing-buffer
-          (url-retrieve "https://api.openai.com/v1/chat/completions"
-                        #'chatgpt-shell--url-retrieve-callback))
-    ;; (switch-to-buffer chatgpt-shell--url-processing-buffer)
-    ))
+          (condition-case err
+              (url-retrieve chatgpt-shell--api-endpoint
+                            #'chatgpt-shell--url-retrieve-callback)
+            (error (chatgpt-shell--write-reply (error-message-string err) t))))
+    (run-with-timer chatgpt-shell--request-timeout nil #'chatgpt-shell--check-on-request processing-buffer)))
+
+(defun chatgpt-shell--check-on-request (url-process-buffer)
+  "Check on the status of the HTTP request.
+
+URL-PROCESS-BUFFER is the buffer that is associated with the
+request process."
+  (with-current-buffer url-process-buffer
+    (let ((process (get-buffer-process (current-buffer))))
+      (condition-case nil
+          (delete-process process)
+        (error nil)))))
 
 (defun chatgpt-shell--url-retrieve-callback (status &optional cbargs)
   ""
-  ;; move me somewhere else
   (advice-remove #'url-http-create-request #'chatgpt-shell--log-request)
-  (chatgpt-shell--write-reply (format "%s" status) t)
-
-  (let ((buffer-string (buffer-string))
-        (status (url-http-symbol-value-in-buffer 'url-http-response-status (current-buffer))))
-    (chatgpt-shell--write-output-to-log-buffer buffer-string)
+  (let ((status (url-http-symbol-value-in-buffer 'url-http-response-status (current-buffer))))
+    (chatgpt-shell--write-output-to-log-buffer (buffer-string))
     ;; Something went wrong in the request, either here or on the
     ;; server, but at least we got a response
-    (unless (= status 200)
-      (chatgpt-shell--write-reply buffer-string t)))
-  ;; straight to the body, who cares about content-types or content-lengths
-  (let ((headers
-         (url-http-symbol-value-in-buffer 'url-http-extra-headers (current-buffer))))
-    (message "%s" headers))
-
-  (search-forward "\n\n")
-  (chatgpt-shell--write-reply
-   (string-trim
-    (map-elt
-     (map-elt
-      (seq-first (map-elt (json-parse-buffer :object-type 'alist) 'choices))
-      'message) 'content))))
+    (if (not (= status 200))
+        (chatgpt-shell--write-reply (buffer-string) t)
+      ;; NOTE Timed out requests will very likely come back completely
+      ;; empty, but they might, in very rare cases, also contain a
+      ;; partial response
+      (condition-case err
+          (progn (search-forward "\n\n")
+                 (chatgpt-shell--json-parse-buffer))
+        (error (chatgpt-shell--write-reply "Did not get a proper response from server" t))
+        (json-error (chatgpt-shell--write-reply "Did not get properly formatted JSON from server" t))
+        (:success
+         (chatgpt-shell--write-reply
+          (string-trim
+           (map-elt
+            (map-elt
+             (seq-first (map-elt chatgpt-shell--last-response
+                                 'choices))
+             'message) 'content))))))))
 
 (defun chatgpt-shell--log-request (request)
   "Write REQUEST to log buffer and return REQUEST."
@@ -471,6 +489,12 @@ Used by `chatgpt-shell--send-input's call."
       (re-search-backward comint-prompt-regexp))
     (comint-skip-prompt)
     (buffer-substring (point) (progn (forward-sexp 1) (point)))))
+
+(defun chatgpt-shell--json-parse-buffer ()
+  "Parse JSON at point.
+
+Write result to `chatgpt-sell--last-response'."
+  (setq chatgpt-shell--last-response (json-parse-buffer :object-type 'alist)))
 
 (defun chatgpt-shell--extract-commands-and-responses ()
   "Extract all command and responses in buffer."
