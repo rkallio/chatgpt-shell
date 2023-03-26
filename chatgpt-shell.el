@@ -299,10 +299,7 @@ request."
 
 ;; Maybe I should be a macro (get rid of callback), maybe not
 (defun chatgpt-shell--request-completion ()
-  "Request a completion.
-
-KEY is API key.  CALLBACK is called with a parsed response body,
-where objects are converted into alists."
+  "Request a completion."
   (let* ((url-request-method "POST")
          (url-request-extra-headers
           `(("Authorization" . ,(concat "Bearer " chatgpt-shell-openai-key))
