@@ -215,113 +215,113 @@ ChatGPT."
   "Major mode for interactively evaluating ChatGPT prompts.
 Uses the interface provided by `comint-mode'"
   (visual-line-mode)
-  (setq comint-prompt-regexp (concat "^" (regexp-quote chatgpt-shell--prompt)))
+  (setq comint-prompt-regexp (concat "^" (regexp-quote gpt--prompt)))
   (setq-local paragraph-separate "\\'")
   (setq-local paragraph-start comint-prompt-regexp)
-  (setq comint-input-sender 'chatgpt-shell--input-sender)
+  (setq comint-input-sender 'gpt--input-sender)
   (setq comint-process-echoes nil)
   (setq-local comint-prompt-read-only t)
-  (setq comint-get-old-input 'chatgpt-shell--get-old-input)
+  (setq comint-get-old-input 'gpt--get-old-input)
   (setq-local comint-completion-addsuffix nil)
 
   (unless (comint-check-proc (current-buffer))
     (condition-case nil
         (start-process "chatgpt" (current-buffer) "hexl")
       (file-error (start-process "chatgpt" (current-buffer) "cat")))
-    (set-process-query-on-exit-flag (chatgpt-shell--process) nil)
+    (set-process-query-on-exit-flag (gpt--process) nil)
     (goto-char (point-max))
     (setq-local comint-inhibit-carriage-motion t)
 
-    (chatgpt-shell--set-pm (point-max))
+    (gpt--set-pm (point-max))
     (unless comint-use-prompt-regexp
       (let ((inhibit-read-only t))
         (add-text-properties
          (point-min) (point-max)
          '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
-    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt)
-    (set-marker comint-last-input-start (chatgpt-shell--pm))
+    (comint-output-filter (gpt--process) gpt--prompt)
+    (set-marker comint-last-input-start (gpt--pm))
     (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter))
 
-  (font-lock-add-keywords nil chatgpt-shell-font-lock-keywords))
+  (font-lock-add-keywords nil gpt-font-lock-keywords))
 
 (defun chatgpt-shell-return ()
   "RET binding."
   (interactive)
-  (chatgpt-shell--send-input))
+  (gpt--send-input))
 
 (defun chatgpt-shell-send-to-buffer (text &optional submit save-excursion)
   "Send TEXT to *chatgpt* buffer.
 Set SUBMIT to automatically submit to ChatGPT.
 Set SAVE-EXCURSION to prevent point from moving."
   (chatgpt-shell)
-  (switch-to-buffer (chatgpt-shell--buffer))
-  (with-current-buffer (chatgpt-shell--buffer)
+  (switch-to-buffer (gpt--buffer))
+  (with-current-buffer (gpt--buffer)
     (goto-char (point-max))
     (if save-excursion
         (save-excursion
           (insert text))
       (insert text))
     (when submit
-      (chatgpt-shell--send-input))))
+      (gpt--send-input))))
 
 (defun chatgpt-shell--eval-input (input-string)
   "Evaluate the Lisp expression INPUT-STRING, and pretty-print the result."
   (cond
    ((string-equal "clear" (string-trim input-string))
     (call-interactively #'comint-clear-buffer)
-    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt))
+    (comint-output-filter (gpt--process) gpt--prompt))
    ((string-empty-p (string-trim input-string))
-    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt))
+    (comint-output-filter (gpt--process) gpt--prompt))
    (t
     ;; For viewing prompt delimiter (used to handle multiline prompts).
     ;; (comint-output-filter (chatgpt-shell--process) "<gpt-end-of-prompt>")
-    (comint-output-filter (chatgpt-shell--process)
+    (comint-output-filter (gpt--process)
                           (propertize "<gpt-end-of-prompt>"
-                                      'invisible (not chatgpt-shell--show-invisible-markers)))
-    (chatgpt-shell--request-completion))))
+                                      'invisible (not gpt--show-invisible-markers)))
+    (gpt--request-completion))))
 
 (defun chatgpt-shell--request-options ()
   "Create a request options alist.
 This is data that will be sent in the request body of a HTTP
 request."
   (let ((request-data))
-    (when chatgpt-shell-model-temperature
-      (push (cons 'temperature chatgpt-shell-model-temperature) request-data))
-    (when chatgpt-shell-model-top-p
-      (push (cons 'top-p chatgpt-shell-model-top-p) request-data))
-    (when chatgpt-shell-model-max-tokens
-      (push (cons 'max-tokens chatgpt-shell-model-max-tokens) request-data))
-    (when chatgpt-shell-model-presence-penalty
-      (push (cons 'presence_penalty chatgpt-shell-model-presence-penalty) request-data))
-    (when chatgpt-shell-model-frequency-penalty
-      (push (cons 'frequency_penalty chatgpt-shell-model-frequency-penalty) request-data))
-    (push (cons 'model chatgpt-shell-model-version) request-data)))
+    (when gpt-model-temperature
+      (push (cons 'temperature gpt-model-temperature) request-data))
+    (when gpt-model-top-p
+      (push (cons 'top-p gpt-model-top-p) request-data))
+    (when gpt-model-max-tokens
+      (push (cons 'max-tokens gpt-model-max-tokens) request-data))
+    (when gpt-model-presence-penalty
+      (push (cons 'presence_penalty gpt-model-presence-penalty) request-data))
+    (when gpt-model-frequency-penalty
+      (push (cons 'frequency_penalty gpt-model-frequency-penalty) request-data))
+    (push (cons 'model gpt-model-version) request-data)))
 
 ;; Maybe I should be a macro (get rid of callback), maybe not
 (defun chatgpt-shell--request-completion ()
   "Request a completion."
   (let* ((url-request-method "POST")
          (url-request-extra-headers
-          `(("Authorization" . ,(concat "Bearer " chatgpt-shell-openai-key))
+          `(("Authorization" . ,(concat "Bearer " gpt-openai-key))
             ("Content-Type" . "application/json")))
          (messages
           (vconcat
-           (last (chatgpt-shell--extract-prompts-and-completions)
-                 (if (null chatgpt-shell-transmitted-context-length)
+           (last (gpt--extract-prompts-and-completions)
+                 (if (null gpt-transmitted-context-length)
                      ;; If variable above is nil, send "full" context.
                      ;; Arbitrarily chosen big number here to signify
                      ;; it
                      2048
                    ;; Send in pairs of prompt and completion by
                    ;; multiplying by 2
-                   (1+ (* 2 chatgpt-shell-transmitted-context-length))))))
+                   (1+ (* 2 gpt-transmitted-context-length))))))
          (request-data (append
-                            (chatgpt-shell--request-options)
+                            (gpt--request-options)
                             `((messages . ,messages))))
          (url-request-data (json-encode request-data)))
     (let ((processing-buffer
-           (url-retrieve chatgpt-shell--api-endpoint #'chatgpt-shell--url-retrieve-callback)))
-      (run-with-timer chatgpt-shell--request-timeout nil #'chatgpt-shell--check-on-request processing-buffer))))
+           (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))
+      (run-with-timer gpt--request-timeout nil #'gpt--check-on-request processing-buffer))))
 
 (defun chatgpt-shell--check-on-request (url-process-buffer)
   "Check on the status of the HTTP request.
@@ -341,7 +341,7 @@ request process."
     ;; server, but at least we got a response
     (search-forward "\n\n")
     (let ((response (json-parse-buffer :object-type 'alist)))
-      (chatgpt-shell--write-completion
+      (gpt--write-completion
        (string-trim
         (map-elt
          (map-elt
@@ -353,41 +353,41 @@ request process."
              (prompt-tokens (cdar usage))
              (completion-tokens (cdadr usage))
              (total-tokens (cdaddr usage)))
-        (setq chatgpt-shell--total-tokens
-              (+ total-tokens chatgpt-shell--total-tokens))
+        (setq gpt--total-tokens
+              (+ total-tokens gpt--total-tokens))
         (setq header-line-format
               (format " Tokens P %s + C %s = %s, Session %s ($%s)"
                       prompt-tokens
                       completion-tokens
                       total-tokens
-                      chatgpt-shell--total-tokens
-                      (* chatgpt-shell--total-tokens 2e-06))))))))
+                      gpt--total-tokens
+                      (* gpt--total-tokens 2e-06))))))))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
-  (set-marker (process-mark (get-buffer-process (chatgpt-shell--buffer))) pos))
+  (set-marker (process-mark (get-buffer-process (gpt--buffer))) pos))
 
 (defun chatgpt-shell--pm nil
   "Return the process mark of the current buffer."
-  (process-mark (get-buffer-process (chatgpt-shell--buffer))))
+  (process-mark (get-buffer-process (gpt--buffer))))
 
 (defun chatgpt-shell--input-sender (_proc input)
   "Set the variable `chatgpt-shell--input' to INPUT.
 Used by `chatgpt-shell--send-input's call."
-  (setq chatgpt-shell--input input))
+  (setq gpt--input input))
 
 (defun chatgpt-shell--send-input ()
   "Send text after the prompt."
   (interactive)
-  (let (chatgpt-shell--input)
+  (let (gpt--input)
     (comint-send-input)
-    (chatgpt-shell--eval-input chatgpt-shell--input)))
+    (gpt--eval-input gpt--input)))
 
 (defun chatgpt-shell--write-completion (completion)
   "Write COMPLETION to comint buffer, and prepare next prompt."
-  (let ((proc (chatgpt-shell--process)))
+  (let ((proc (gpt--process)))
     (comint-output-filter proc completion)
-    (comint-output-filter proc (concat "\n" chatgpt-shell--prompt))))
+    (comint-output-filter proc (concat "\n" gpt--prompt))))
 
 (defun chatgpt-shell--get-old-input nil
   "Return the previous input surrounding point."
@@ -401,7 +401,7 @@ Used by `chatgpt-shell--send-input's call."
 (defun chatgpt-shell--extract-prompts-and-completions ()
   "Extract all command and responses in buffer."
   (let ((result))
-    (with-current-buffer (chatgpt-shell--buffer)
+    (with-current-buffer (gpt--buffer)
       (mapc (lambda (item)
               (let* ((values (split-string item "<gpt-end-of-prompt>"))
                      (lines (split-string item "\n"))
@@ -419,17 +419,21 @@ Used by `chatgpt-shell--send-input's call."
                     (push (list (cons 'role "system")
                                 (cons 'content response)) result)))))
             (split-string (substring-no-properties (buffer-string))
-                          chatgpt-shell--prompt)))
+                          gpt--prompt)))
     (nreverse result)))
 
 (defun chatgpt-shell--buffer ()
   "Get *chatgpt* buffer."
   (get-buffer-create "*chatgpt*"))
 
-(defun chatgpt-shell--process nil
+(defun gpt--process nil
   "Get *chatgpt* process."
-  (get-buffer-process (chatgpt-shell--buffer)))
+  (get-buffer-process (gpt--buffer)))
 
 (provide 'chatgpt-shell)
 
 ;;; chatgpt-shell.el ends here
+
+;; Local Variables:
+;; read-symbol-shorthands: (("gpt-" . "chatgpt-shell-"))
+;; End:
