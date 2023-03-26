@@ -297,7 +297,6 @@ request."
       (push (cons 'frequency_penalty gpt-model-frequency-penalty) request-data))
     (push (cons 'model gpt-model-version) request-data)))
 
-;; Maybe I should be a macro (get rid of callback), maybe not
 (defun chatgpt-shell--request-completion ()
   "Request a completion."
   (let* ((url-request-method "POST")
@@ -305,23 +304,34 @@ request."
           `(("Authorization" . ,(concat "Bearer " gpt-openai-key))
             ("Content-Type" . "application/json")))
          (messages
-          (vconcat
-           (last (gpt--extract-prompts-and-completions)
-                 (if (null gpt-transmitted-context-length)
-                     ;; If variable above is nil, send "full" context.
-                     ;; Arbitrarily chosen big number here to signify
-                     ;; it
-                     2048
-                   ;; Send in pairs of prompt and completion by
-                   ;; multiplying by 2
-                   (1+ (* 2 gpt-transmitted-context-length))))))
+          (last (gpt--extract-prompts-and-completions)
+                (if (null gpt-transmitted-context-length)
+                    most-positive-fixnum
+                  (1+ (* 2 gpt-transmitted-context-length)))))
          (request-data (append
-                            (gpt--request-options)
-                            `((messages . ,messages))))
-         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t)))
-    (let ((processing-buffer
-           (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))
-      (run-with-timer gpt--request-timeout nil #'gpt--check-on-request processing-buffer))))
+                        (gpt--request-options)
+                        `((messages . ,messages))))
+         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t))
+         (processing-buffer
+          (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))
+    (run-with-timer gpt--request-timeout nil #'gpt--check-on-request processing-buffer)))
+
+(defun chatgpt-shell--url-retrieve-callback (_status)
+  (search-forward "\n\n")
+  (let* ((response (json-parse-buffer :object-type 'alist))
+         (completion (gpt--first-completion response))
+         (tokens (gpt--read-tokens response)))
+    (setq gpt--total-tokens (+ (caddr tokens) gpt--total-tokens))
+    (with-current-buffer "*chatgpt*"
+      (setq header-line-format
+            (format " Tokens P %s C %s, Session %s ($%.2f)"
+                    (car tokens)
+                    (cadr tokens)
+                    gpt--total-tokens
+                    (* gpt--total-tokens 2e-06))))
+    (let ((proc (gpt--process)))
+      (comint-output-filter proc completion)
+      (comint-output-filter proc (concat "\n" gpt--prompt)))))
 
 (defun chatgpt-shell--check-on-request (url-process-buffer)
   "Check on the status of the HTTP request.
@@ -353,28 +363,13 @@ Prompt tokens will be stored in `car', completion tokens in
      (alist-get 'completion_tokens usage)
      (alist-get 'total_tokens usage))))
 
-(defun chatgpt-shell--url-retrieve-callback (_status)
-  (search-forward "\n\n")
-  (let* ((response (json-parse-buffer :object-type 'alist))
-         (completion (gpt--first-completion response))
-         (tokens (gpt--read-tokens response)))
-    (gpt--write-completion completion)
-    (setq gpt--total-tokens (+ (caddr tokens) gpt--total-tokens))
-    (with-current-buffer "*chatgpt*"
-      (setq header-line-format
-            (format " Tokens P %s C %s, Session %s ($%.2f)"
-                    (car tokens)
-                    (cadr tokens)
-                    gpt--total-tokens
-                    (* gpt--total-tokens 2e-06))))))
-
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
-  (set-marker (process-mark (get-buffer-process (gpt--buffer))) pos))
+  (set-marker (process-mark (gpt--process)) pos))
 
 (defun chatgpt-shell--pm nil
   "Return the process mark of the current buffer."
-  (process-mark (get-buffer-process (gpt--buffer))))
+  (process-mark (gpt--process)))
 
 (defun chatgpt-shell--input-sender (_proc input)
   "Set the variable `chatgpt-shell--input' to INPUT.
@@ -387,12 +382,6 @@ Used by `chatgpt-shell--send-input's call."
   (let (gpt--input)
     (comint-send-input)
     (gpt--eval-input gpt--input)))
-
-(defun chatgpt-shell--write-completion (completion)
-  "Write COMPLETION to comint buffer, and prepare next prompt."
-  (let ((proc (gpt--process)))
-    (comint-output-filter proc completion)
-    (comint-output-filter proc (concat "\n" gpt--prompt))))
 
 (defun chatgpt-shell--get-old-input nil
   "Return the previous input surrounding point."
