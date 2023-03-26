@@ -115,7 +115,7 @@ completions/create#completions/create-top_p for details."
                  (const nil))
   :group 'chatgpt-shell)
 
-(defcustom chatgpt-shell-stream nil
+(defcustom chatgpt-shell-stream t
   "If set, completion will be received and displayed as deltas.
 
 See https://platform.openai.com/docs/api-reference/chat\
