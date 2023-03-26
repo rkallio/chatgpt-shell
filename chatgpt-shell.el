@@ -109,8 +109,6 @@ completions/create#completions/create-top_p for details."
 (defcustom chatgpt-shell-stream nil
   "If set, completion will be received and displayed as deltas.
 
-Not implemented, so does not do anything.
-
 See https://platform.openai.com/docs/api-reference/chat\
 /create#chat/create-stream for details."
   :type 'boolean
@@ -295,6 +293,7 @@ request."
       (push (cons 'presence_penalty gpt-model-presence-penalty) request-data))
     (when gpt-model-frequency-penalty
       (push (cons 'frequency_penalty gpt-model-frequency-penalty) request-data))
+    (push (cons 'stream gpt-stream) request-data)
     (push (cons 'model gpt-model-version) request-data)))
 
 (defun chatgpt-shell--request-completion ()
@@ -311,10 +310,14 @@ request."
          (request-data (append
                         (gpt--request-options)
                         `((messages . ,messages))))
-         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t))
-         (processing-buffer
-          (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))
-    (run-with-timer gpt--request-timeout nil #'gpt--check-on-request processing-buffer)))
+         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t)))
+    (if (alist-get 'stream request-data)
+        ;; streamed response
+        (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback)
+          (add-hook 'after-change-functions #'gpt--check-on-streamed-request nil t))
+      ;; non-streamed response
+      (run-with-timer gpt--request-timeout nil #'gpt--check-on-request
+                      (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))))
 
 (defun chatgpt-shell--url-retrieve-callback (_status)
   (search-forward "\n\n")
@@ -343,6 +346,32 @@ request process."
       (condition-case nil
           (delete-process process)
         (error nil)))))
+
+(defun chatgpt-shell--url-retrieve-stream-callback (_status)
+  (with-current-buffer (chatgpt-shell--buffer)
+    (font-lock-update)))
+
+(defun chatgpt-shell--check-on-streamed-request (begin end _pre-change-length)
+  "Check on the status of the HTTP request.
+Called whenever new data is provided.  BEGIN is the position of
+the beginning of the changed text, END is the end position."
+  (let ((delta (buffer-substring begin end)))
+    (with-temp-buffer
+      (insert delta)
+      (goto-char (point-min))
+      (when (search-forward "data: {" nil t)
+        (backward-char)
+        (condition-case nil
+            (let* ((body (json-parse-buffer :object-type 'alist))
+                   (choices (alist-get 'choices body))
+                   (first (elt choices 0))
+                   (delta (alist-get 'delta first))
+                   (finish-reason (alist-get 'finish_reason first))
+                   (content (alist-get 'content delta)))
+              (when content
+                (comint-output-filter (gpt--process) content))
+              (when (string= finish-reason "stop")
+                (comint-output-filter (gpt--process) (concat "\n" gpt--prompt)))))))))
 
 (defun chatgpt-shell--first-completion (completion-response)
   "Access the first completion in COMPLETION-RESPONSE."
