@@ -7,7 +7,7 @@
 ;; Maintainer: Roni Kallio <roni.jj.kallio@gmail.com>
 ;; URL: https://github.com/rkallio/chatgpt-shell
 ;; Upstream-URL: https://github.com/xenodium/chatgpt-shell
-;; Version: 0.3
+;; Version: 0.4
 ;; Package-Requires: ((emacs "28.2"))
 
 ;; This package is free software; you can redistribute it and/or modify
