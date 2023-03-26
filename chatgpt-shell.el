@@ -32,6 +32,11 @@
 ;;
 ;; Run `chatgpt-shell' to get a ChatGPT shell.
 
+;;; Known issues:
+
+;; * Sometimes the first token of a completion disappears on
+;;   transport.
+
 ;;; Code:
 
 (require 'comint)
