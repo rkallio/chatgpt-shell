@@ -334,34 +334,39 @@ request process."
           (delete-process process)
         (error nil)))))
 
-(defun chatgpt-shell--url-retrieve-callback (status &optional cbargs)
-  ""
-  (let ((status (url-http-symbol-value-in-buffer 'url-http-response-status (current-buffer))))
-    ;; Something went wrong in the request, either here or on the
-    ;; server, but at least we got a response
-    (search-forward "\n\n")
-    (let ((response (json-parse-buffer :object-type 'alist)))
-      (gpt--write-completion
-       (string-trim
-        (map-elt
-         (map-elt
-          (seq-first
-           (map-elt response 'choices))
-          'message) 'content)))
+(defun chatgpt-shell--first-completion (completion-response)
+  "Access the first completion in COMPLETION-RESPONSE."
+  (let* ((choices (alist-get 'choices completion-response))
+         (first-choice (elt choices 0))
+         (message (alist-get 'message first-choice))
+         (content (alist-get 'content message)))
+    content))
+
+(defun chatgpt-shell--read-tokens (completion-response)
+  "Acess tokens in COMPLETION-RESPONSE.
+
+Prompt tokens will be stored in `car', completion tokens in
+`cadr', and total tokens in `caddr' of the returned list."
+  (let* ((usage (alist-get 'usage completion-response)))
+    (list
+     (alist-get 'prompt_tokens usage)
+     (alist-get 'completion_tokens usage)
+     (alist-get 'total_tokens usage))))
+
+(defun chatgpt-shell--url-retrieve-callback (_status)
+  (search-forward "\n\n")
+  (let* ((response (json-parse-buffer :object-type 'alist))
+         (completion (gpt--first-completion response))
+         (tokens (gpt--read-tokens response)))
+    (gpt--write-completion completion)
+    (setq gpt--total-tokens (+ (caddr tokens) gpt--total-tokens))
     (with-current-buffer "*chatgpt*"
-      (let* ((usage (alist-get 'usage response))
-             (prompt-tokens (cdar usage))
-             (completion-tokens (cdadr usage))
-             (total-tokens (cdaddr usage)))
-        (setq gpt--total-tokens
-              (+ total-tokens gpt--total-tokens))
-        (setq header-line-format
-              (format " Tokens P %s + C %s = %s, Session %s ($%s)"
-                      prompt-tokens
-                      completion-tokens
-                      total-tokens
-                      gpt--total-tokens
-                      (* gpt--total-tokens 2e-06))))))))
+      (setq header-line-format
+            (format " Tokens P %s C %s, Session %s ($%.2f)"
+                    (car tokens)
+                    (cadr tokens)
+                    gpt--total-tokens
+                    (* gpt--total-tokens 2e-06))))))
 
 (defun chatgpt-shell--set-pm (pos)
   "Set the process mark in the current buffer to POS."
