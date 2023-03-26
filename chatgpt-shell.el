@@ -40,7 +40,8 @@
 
 (defcustom chatgpt-shell-openai-key nil
   "OpenAI key as a string or a function that loads and returns it."
-  :type 'string
+  :type '(choice string
+                 function)
   :group 'chatgpt-shell)
 
 (defcustom chatgpt-shell--request-timeout 60
@@ -453,6 +454,13 @@ Used by `chatgpt-shell--send-input's call."
 (defun gpt--process nil
   "Get *chatgpt* process."
   (get-buffer-process (gpt--buffer)))
+
+(defun chatgpt-shell--openai-key ()
+  "Extract key from `chatgpt-shell-openai-key'."
+  (pcase chatgpt-shell-openai-key
+    ((pred functionp) (funcall chatgpt-shell-openai-key))
+    ((pred stringp) chatgpt-shell-openai-key)
+    (_ (error "Set `chatgpt-shell-openai-key' to a string or a function"))))
 
 (provide 'chatgpt-shell)
 
