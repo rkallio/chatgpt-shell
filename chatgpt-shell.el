@@ -318,7 +318,7 @@ request."
          (request-data (append
                             (gpt--request-options)
                             `((messages . ,messages))))
-         (url-request-data (json-encode request-data)))
+         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t)))
     (let ((processing-buffer
            (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))
       (run-with-timer gpt--request-timeout nil #'gpt--check-on-request processing-buffer))))
