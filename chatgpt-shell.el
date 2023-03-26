@@ -310,7 +310,7 @@ where objects are converted into alists."
             ("Content-Type" . "application/json")))
          (messages
           (vconcat
-           (last (chatgpt-shell--extract-commands-and-responses)
+           (last (chatgpt-shell--extract-prompts-and-completions)
                  (if (null chatgpt-shell-transmitted-context-length)
                      ;; If variable above is nil, send "full" context.
                      ;; Arbitrarily chosen big number here to signify
@@ -411,7 +411,7 @@ Used by `chatgpt-shell--send-input's call."
     (comint-skip-prompt)
     (buffer-substring (point) (progn (forward-sexp 1) (point)))))
 
-(defun chatgpt-shell--extract-commands-and-responses ()
+(defun chatgpt-shell--extract-prompts-and-completions ()
   "Extract all command and responses in buffer."
   (let ((result))
     (with-current-buffer (chatgpt-shell--buffer)
