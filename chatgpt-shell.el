@@ -320,10 +320,7 @@ request."
                             `((messages . ,messages))))
          (url-request-data (json-encode request-data)))
     (let ((processing-buffer
-           (condition-case err
-               (url-retrieve chatgpt-shell--api-endpoint
-                             #'chatgpt-shell--url-retrieve-callback)
-             (error (chatgpt-shell--write-reply (error-message-string err) t)))))
+           (url-retrieve chatgpt-shell--api-endpoint #'chatgpt-shell--url-retrieve-callback)))
       (run-with-timer chatgpt-shell--request-timeout nil #'chatgpt-shell--check-on-request processing-buffer))))
 
 (defun chatgpt-shell--check-on-request (url-process-buffer)
