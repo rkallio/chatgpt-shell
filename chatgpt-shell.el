@@ -347,7 +347,7 @@ request process."
     ;; server, but at least we got a response
     (search-forward "\n\n")
     (let ((response (json-parse-buffer :object-type 'alist)))
-      (chatgpt-shell--write-reply
+      (chatgpt-shell--write-completion
        (string-trim
         (map-elt
          (map-elt
@@ -389,16 +389,11 @@ Used by `chatgpt-shell--send-input's call."
     (comint-send-input)
     (chatgpt-shell--eval-input chatgpt-shell--input)))
 
-(defun chatgpt-shell--write-reply (reply &optional failed)
-  "Write REPLY to prompt.  Set FAILED to record failure."
-  (comint-output-filter (chatgpt-shell--process)
-                        (concat (string-trim reply)
-                                (if failed
-                                    (propertize "\n<gpt-ignored-response>"
-                                                'invisible (not chatgpt-shell--show-invisible-markers))
-                                  "")
-                                "\n"
-                                chatgpt-shell--prompt)))
+(defun chatgpt-shell--write-completion (completion)
+  "Write COMPLETION to comint buffer, and prepare next prompt."
+  (let ((proc (chatgpt-shell--process)))
+    (comint-output-filter proc completion)
+    (comint-output-filter proc (concat "\n" chatgpt-shell--prompt))))
 
 (defun chatgpt-shell--get-old-input nil
   "Return the previous input surrounding point."
