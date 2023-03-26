@@ -271,8 +271,7 @@ Set SAVE-EXCURSION to prevent point from moving."
     (call-interactively #'comint-clear-buffer)
     (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt))
    ((string-empty-p (string-trim input-string))
-    (comint-output-filter (chatgpt-shell--process)
-                          (concat "\n" chatgpt-shell--prompt)))
+    (comint-output-filter (chatgpt-shell--process) chatgpt-shell--prompt))
    (t
     ;; For viewing prompt delimiter (used to handle multiline prompts).
     ;; (comint-output-filter (chatgpt-shell--process) "<gpt-end-of-prompt>")
@@ -322,7 +321,7 @@ where objects are converted into alists."
          (request-data (append
                             (chatgpt-shell--request-options)
                             `((messages . ,messages))))
-         (url-request-data (concat (json-encode request-data) "\n")))
+         (url-request-data (json-encode request-data)))
     (let ((processing-buffer
            (condition-case err
                (url-retrieve chatgpt-shell--api-endpoint
@@ -393,13 +392,12 @@ Used by `chatgpt-shell--send-input's call."
 (defun chatgpt-shell--write-reply (reply &optional failed)
   "Write REPLY to prompt.  Set FAILED to record failure."
   (comint-output-filter (chatgpt-shell--process)
-                        (concat "\n"
-                                (string-trim reply)
+                        (concat (string-trim reply)
                                 (if failed
                                     (propertize "\n<gpt-ignored-response>"
                                                 'invisible (not chatgpt-shell--show-invisible-markers))
                                   "")
-                                "\n\n"
+                                "\n"
                                 chatgpt-shell--prompt)))
 
 (defun chatgpt-shell--get-old-input nil
