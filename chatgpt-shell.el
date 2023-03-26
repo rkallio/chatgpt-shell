@@ -309,7 +309,7 @@ request."
   "Request a completion."
   (let* ((url-request-method "POST")
          (url-request-extra-headers
-          `(("Authorization" . ,(concat "Bearer " gpt-openai-key))
+          `(("Authorization" . ,(concat "Bearer " (gpt--openai-key)))
             ("Content-Type" . "application/json")))
          (messages
           (last (gpt--extract-prompts-and-completions)
