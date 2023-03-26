@@ -43,9 +43,9 @@
   :type 'string
   :group 'chatgpt-shell)
 
-(defcustom chatgpt-shell--request-timeout 30
+(defcustom chatgpt-shell--request-timeout 60
   "Timeout request after this many seconds."
-  :type 'integer
+  :type 'number
   :group 'chatgpt-shell)
 
 (defcustom chatgpt-shell-model-version "gpt-3.5-turbo"
@@ -190,7 +190,7 @@ ChatGPT."
 
 (defvar chatgpt-shell-map
   (let ((map (nconc (make-sparse-keymap) comint-mode-map)))
-    (define-key map "\C-m" 'chatgpt-shell-return)
+    (define-key map "\C-m" 'gpt-return)
     map)
   "Keymap for ChatGPT mode.")
 
