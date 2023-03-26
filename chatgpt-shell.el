@@ -358,6 +358,7 @@ the beginning of the changed text, END is the end position."
   (let ((delta (buffer-substring begin end)))
     (with-temp-buffer
       (insert delta)
+      (decode-coding-region (point-min) (point-max) 'utf-8)
       (goto-char (point-min))
       (when (search-forward "data: {" nil t)
         (backward-char)
