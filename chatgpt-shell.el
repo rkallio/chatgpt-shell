@@ -1,11 +1,14 @@
 ;;; chatgpt-shell.el --- Interaction mode for ChatGPT  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023 Alvaro Ramirez
+;; Copyright (C) 2023 Alvaro Ramirez, Roni Kallio
 
 ;; Author: Alvaro Ramirez
-;; URL: https://github.com/xenodium/chatgpt-shell
+;;     Roni Kallio <roni.jj.kallio@gmail.com>
+;; Maintainer: Roni Kallio <roni.jj.kallio@gmail.com>
+;; URL: https://github.com/rkallio/chatgpt-shell
+;; Upstream-URL: https://github.com/xenodium/chatgpt-shell
 ;; Version: 0.3
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "28.2"))
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -451,7 +454,7 @@ Used by `chatgpt-shell--send-input's call."
   "Get *chatgpt* buffer."
   (get-buffer-create "*chatgpt*"))
 
-(defun gpt--process nil
+(defun chatgpt-shell--process nil
   "Get *chatgpt* process."
   (get-buffer-process (gpt--buffer)))
 
