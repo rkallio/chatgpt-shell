@@ -426,13 +426,13 @@ Used by `chatgpt-shell--send-input's call."
                      (response (string-trim (progn
                                               (if (> (length values) 1)
                                                   (nth 1 values)
-                                                (string-join
-                                                 (cdr lines) "\n"))))))
+                                                (mapconcat #'identity
+                                                           (cdr lines) "\n"))))))
                 (unless (string-match "<gpt-ignored-response>" response)
-                  (when (not (string-empty-p prompt))
+                  (when (not (string= "" prompt))
                     (push (list (cons 'role "user")
                                 (cons 'content prompt)) result))
-                  (when (not (string-empty-p response))
+                  (when (not (string= "" response))
                     (push (list (cons 'role "system")
                                 (cons 'content response)) result)))))
             (split-string (substring-no-properties (buffer-string))
