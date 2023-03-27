@@ -32,10 +32,15 @@
 ;;
 ;; Run `chatgpt-shell' to get a ChatGPT shell.
 
-;;; Known issues:
+;;; Known issues in order of importance:
 
+;; * Not enough info is given when a request fails due to a bad API
+;; * token.
+;;
 ;; * Sometimes the first token of a completion disappears on
 ;;   transport.
+;;
+;; * HTTP request buffers are left dangling after completed response.
 
 ;;; Code:
 
