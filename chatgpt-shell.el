@@ -45,8 +45,6 @@
 ;;; Code:
 
 (require 'comint)
-(require 'map)
-(require 'seq)
 
 (eval-when-compile
   (require 'cl-lib))
