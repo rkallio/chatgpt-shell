@@ -309,27 +309,24 @@ request."
         (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback)
           (add-hook 'after-change-functions #'gpt--check-on-streamed-request nil t))
       ;; non-streamed response
-      (run-with-timer gpt--request-timeout nil #'gpt--check-on-request
-                      (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback)))))
+      (run-with-timer gpt--request-timeout nil #'gpt--timeout-request
+                      (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback nil t)))))
 
 (defun chatgpt-shell--url-retrieve-callback (_status)
   (search-forward "\n\n")
   (let* ((response (json-parse-buffer :object-type 'alist))
          (completion (gpt--first-completion response)))
+    ;; This is the HTTP request buffer
+    (kill-buffer (current-buffer))
     (let ((proc (gpt--process)))
       (comint-output-filter proc completion)
       (comint-output-filter proc (concat "\n" gpt--prompt)))))
 
-(defun chatgpt-shell--check-on-request (url-process-buffer)
-  "Check on the status of the HTTP request.
-
-URL-PROCESS-BUFFER is the buffer that is associated with the
-request process."
-  (with-current-buffer url-process-buffer
-    (let ((process (get-buffer-process (current-buffer))))
-      (condition-case nil
-          (delete-process process)
-        (error nil)))))
+(defun chatgpt-shell--timeout-request (url-process-buffer)
+  "Timeout the completion request by killing URL-PROCESS-BUFFER."
+  (condition-case nil
+      (kill-buffer url-process-buffer)
+    (error nil)))
 
 (defun chatgpt-shell--url-retrieve-stream-callback (_status)
   (with-current-buffer (chatgpt-shell--buffer)
