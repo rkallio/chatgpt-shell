@@ -184,9 +184,6 @@ ChatGPT."
 
 (defvar chatgpt-shell--show-invisible-markers nil)
 
-(defvar-local gpt--streamed-response-mark nil
-  "Internal mark in the streamed response process buffer.")
-
 (defvaralias 'inferior-chatgpt-mode-map 'chatgpt-shell-map)
 
 (defconst chatgpt-shell-font-lock-keywords
@@ -310,7 +307,6 @@ request."
     (if (alist-get 'stream request-data)
         ;; streamed response
         (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback nil t)
-          (setq gpt--streamed-response-mark (point-min))
           (add-hook 'after-change-functions #'gpt--check-on-streamed-response-2 nil t))
       ;; non-streamed response
       (run-with-timer gpt--request-timeout nil #'gpt--timeout-request
@@ -360,11 +356,11 @@ the beginning of the changed text, END is the end position."
               (when (string= finish-reason "stop")
                 (comint-output-filter (gpt--process) (concat "\n" gpt--prompt)))))))))
 
-(defun chatgpt-shell--check-on-streamed-response-2 (_begin end _pre-change-length)
+(defun chatgpt-shell--check-on-streamed-response-2 (begin end _deleted)
   "Act on new response data.
-Called whenever the url response buffer changes.  END is the
-location at which changes end."
-  (let ((delta (buffer-substring gpt--streamed-response-mark end)))
+Called whenever the url response buffer changes.  BEGIN is the
+beginning point of changes and END is the ending point."
+  (let ((delta (buffer-substring begin end)))
     (with-temp-buffer
       (insert delta)
       (decode-coding-region (point-min) (point-max) 'utf-8)
@@ -380,8 +376,7 @@ location at which changes end."
           (when content
             (comint-output-filter (gpt--process) content))
           (when (string= finish-reason "stop")
-            (comint-output-filter (gpt--process) (concat "\n" gpt--prompt)))))))
-    (setq gpt--streamed-response-mark end))
+            (comint-output-filter (gpt--process) (concat "\n" gpt--prompt))))))))
 
 (defun chatgpt-shell--first-completion (completion-response)
   "Access the first completion in COMPLETION-RESPONSE."
