@@ -257,21 +257,6 @@ Uses the interface provided by `comint-mode'"
   (interactive)
   (gpt--send-input))
 
-(defun chatgpt-shell-send-to-buffer (text &optional submit save-excursion)
-  "Send TEXT to *chatgpt* buffer.
-Set SUBMIT to automatically submit to ChatGPT.
-Set SAVE-EXCURSION to prevent point from moving."
-  (chatgpt-shell)
-  (switch-to-buffer (gpt--buffer))
-  (with-current-buffer (gpt--buffer)
-    (goto-char (point-max))
-    (if save-excursion
-        (save-excursion
-          (insert text))
-      (insert text))
-    (when submit
-      (gpt--send-input))))
-
 (defun chatgpt-shell--eval-input (input-string)
   "Evaluate the Lisp expression INPUT-STRING, and pretty-print the result."
   (cond
