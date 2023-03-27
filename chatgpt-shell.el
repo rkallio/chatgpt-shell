@@ -303,7 +303,7 @@ request."
          (request-data (append
                         (gpt--request-options)
                         `((messages . ,messages))))
-         (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t)))
+         (url-request-data (encode-coding-string (json-serialize request-data) 'utf-8 t)))
     (if (alist-get 'stream request-data)
         ;; streamed response
         (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback nil t)
@@ -437,7 +437,7 @@ Used by `chatgpt-shell--send-input's call."
                                 (cons 'content response)) result)))))
             (split-string (substring-no-properties (buffer-string))
                           gpt--prompt)))
-    (nreverse result)))
+    (vconcat (nreverse result))))
 
 (defun chatgpt-shell--buffer ()
   "Get *chatgpt* buffer."
