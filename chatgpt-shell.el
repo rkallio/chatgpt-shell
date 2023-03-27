@@ -264,7 +264,7 @@ Uses the interface provided by `comint-mode'"
    ((string-equal "clear" (string-trim input-string))
     (call-interactively #'comint-clear-buffer)
     (comint-output-filter (gpt--process) gpt--prompt))
-   ((string-empty-p (string-trim input-string))
+   ((string= "" (string-trim input-string))
     (comint-output-filter (gpt--process) gpt--prompt))
    (t
     ;; For viewing prompt delimiter (used to handle multiline prompts).
