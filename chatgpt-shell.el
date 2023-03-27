@@ -184,8 +184,6 @@ ChatGPT."
 
 (defvar chatgpt-shell--total-tokens 0)
 
-(defvar chatgpt-shell--last-response nil)
-
 (defvar chatgpt-shell--show-invisible-markers nil)
 
 (defvaralias 'inferior-chatgpt-mode-map 'chatgpt-shell-map)
