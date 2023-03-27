@@ -184,6 +184,9 @@ ChatGPT."
 
 (defvar chatgpt-shell--show-invisible-markers nil)
 
+(defvar-local gpt--streamed-response-mark nil
+  "Internal mark in the streamed response process buffer.")
+
 (defvaralias 'inferior-chatgpt-mode-map 'chatgpt-shell-map)
 
 (defconst chatgpt-shell-font-lock-keywords
@@ -306,8 +309,9 @@ request."
          (url-request-data (encode-coding-string (json-encode request-data) 'utf-8 t)))
     (if (alist-get 'stream request-data)
         ;; streamed response
-        (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback)
-          (add-hook 'after-change-functions #'gpt--check-on-streamed-request nil t))
+        (with-current-buffer (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-stream-callback nil t)
+          (setq gpt--streamed-response-mark (point-min))
+          (add-hook 'after-change-functions #'gpt--check-on-streamed-response-2 nil t))
       ;; non-streamed response
       (run-with-timer gpt--request-timeout nil #'gpt--timeout-request
                       (url-retrieve gpt--api-endpoint #'gpt--url-retrieve-callback nil t)))))
@@ -329,10 +333,11 @@ request."
     (error nil)))
 
 (defun chatgpt-shell--url-retrieve-stream-callback (_status)
+  (kill-buffer (current-buffer))
   (with-current-buffer (chatgpt-shell--buffer)
     (font-lock-update)))
 
-(defun chatgpt-shell--check-on-streamed-request (begin end _pre-change-length)
+(defun chatgpt-shell--check-on-streamed-response-1 (begin end _pre-change-length)
   "Check on the status of the HTTP request.
 Called whenever new data is provided.  BEGIN is the position of
 the beginning of the changed text, END is the end position."
@@ -354,6 +359,29 @@ the beginning of the changed text, END is the end position."
                 (comint-output-filter (gpt--process) content))
               (when (string= finish-reason "stop")
                 (comint-output-filter (gpt--process) (concat "\n" gpt--prompt)))))))))
+
+(defun chatgpt-shell--check-on-streamed-response-2 (_begin end _pre-change-length)
+  "Act on new response data.
+Called whenever the url response buffer changes.  END is the
+location at which changes end."
+  (let ((delta (buffer-substring gpt--streamed-response-mark end)))
+    (with-temp-buffer
+      (insert delta)
+      (decode-coding-region (point-min) (point-max) 'utf-8)
+      (goto-char (point-min))
+      (while (search-forward "data: {" nil t)
+        (backward-char)
+        (let* ((body (json-parse-buffer :object-type 'alist))
+               (choices (alist-get 'choices body))
+               (first (elt choices 0))
+               (delta (alist-get 'delta first))
+               (finish-reason (alist-get 'finish_reason first))
+               (content (alist-get 'content delta)))
+          (when content
+            (comint-output-filter (gpt--process) content))
+          (when (string= finish-reason "stop")
+            (comint-output-filter (gpt--process) (concat "\n" gpt--prompt)))))))
+    (setq gpt--streamed-response-mark end))
 
 (defun chatgpt-shell--first-completion (completion-response)
   "Access the first completion in COMPLETION-RESPONSE."
